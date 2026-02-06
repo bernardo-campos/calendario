@@ -14,7 +14,22 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body { 
             font-family: 'Inter', sans-serif; 
-            background-color: #121212; /* Fondo oscuro para los costados */
+            background-color: #0a0a0a; /* Fondo muy oscuro para los costados */
+            transition: background-color 0.3s ease;
+        }
+        .day-crossed {
+            position: relative;
+        }
+        .day-crossed::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background-color: rgba(239, 68, 68, 0.7); /* Rojo semitransparente */
+            transform: rotate(-45deg);
+            pointer-events: none;
         }
     </style>
 </head>
@@ -24,7 +39,6 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Datos de los feriados extraídos de la imagen
         const HOLIDAYS_DATA = [
             { date: '2026-01-01', type: 'inamovible', label: 'Jueves 1: Año Nuevo (feriado inamovible).' },
             { date: '2026-02-16', type: 'inamovible', label: 'Lunes 16: Carnaval (feriado inamovible).' },
@@ -53,14 +67,17 @@
         ];
 
         const COLORS = {
-            inamovible: "bg-[#ed1c24]", // Rojo
-            no_laborable: "bg-[#f7941d]", // Naranja
-            turistico: "bg-[#8cc63f]", // Verde
-            trasladable: "bg-[#00aeef]" // Celeste
+            inamovible: "bg-[#ed1c24]",
+            no_laborable: "bg-[#f7941d]",
+            turistico: "bg-[#8cc63f]",
+            trasladable: "bg-[#00aeef]"
         };
 
-        const Month = ({ monthIdx }) => {
+        const Month = ({ monthIdx, isDark, crossOutPast }) => {
             const year = 2026;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
             const getDaysInMonth = (m) => new Date(year, m + 1, 0).getDate();
             const getFirstDayOfMonth = (m) => new Date(year, m, 1).getDay();
 
@@ -76,8 +93,10 @@
 
             return (
                 <div className="flex flex-col mb-10 px-2">
-                    <h3 className="text-2xl font-black mb-2 text-gray-800 tracking-tight">{MONTHS[monthIdx]}</h3>
-                    <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs mb-2 text-gray-400 border-b border-gray-100 pb-1">
+                    <h3 className={`text-2xl font-black mb-2 tracking-tight ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                        {MONTHS[monthIdx]}
+                    </h3>
+                    <div className={`grid grid-cols-7 gap-1 text-center font-bold text-xs mb-2 text-gray-400 border-b pb-1 ${isDark ? 'border-gray-700' : 'border-gray-100'}`}>
                         <div>D</div><div>L</div><div>M</div><div>M</div><div>J</div><div>V</div><div>S</div>
                     </div>
                     <div className="grid grid-cols-7 gap-1 text-center">
@@ -85,12 +104,20 @@
                         {days.map(day => {
                             const dateStr = `${year}-${String(monthIdx + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                             const holiday = HOLIDAYS_DATA.find(h => h.date === dateStr);
+                            
+                            const currentDayDate = new Date(year, monthIdx, day);
+                            const isPast = currentDayDate < today;
+                            const isToday = currentDayDate.getTime() === today.getTime();
+
                             return (
-                                <div key={day} className="relative flex items-center justify-center p-1 h-8 w-8 mx-auto">
+                                <div key={day} className={`relative flex items-center justify-center p-1 h-8 w-8 mx-auto ${crossOutPast && isPast ? 'day-crossed opacity-40' : ''}`}>
                                     {holiday && (
                                         <div className={`absolute inset-0 rounded-full ${COLORS[holiday.type]}`}></div>
                                     )}
-                                    <span className={`relative text-sm font-bold ${holiday ? 'text-white' : 'text-gray-700'}`}>
+                                    {isToday && !holiday && (
+                                        <div className={`absolute inset-0 rounded-full border-2 ${isDark ? 'border-gray-600' : 'border-gray-200'}`}></div>
+                                    )}
+                                    <span className={`relative text-sm font-bold ${holiday ? 'text-white' : (isDark ? 'text-gray-300' : 'text-gray-700')}`}>
                                         {day}
                                     </span>
                                 </div>
@@ -100,7 +127,7 @@
                     
                     <div className="mt-4 space-y-1">
                         {monthHolidays.map((h, i) => (
-                            <p key={i} className="text-[10px] leading-tight text-gray-600 text-left font-medium">
+                            <p key={i} className={`text-[10px] leading-tight text-left font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                                 {h.label}
                             </p>
                         ))}
@@ -110,53 +137,107 @@
         };
 
         const App = () => {
+            // Cargar preferencias de localStorage
+            const [isDark, setIsDark] = useState(() => {
+                const saved = localStorage.getItem('cal-theme');
+                return saved ? JSON.parse(saved) : false;
+            });
+            
+            const [crossOutPast, setCrossOutPast] = useState(() => {
+                const saved = localStorage.getItem('cal-crossed');
+                return saved ? JSON.parse(saved) : false;
+            });
+
+            // Guardar preferencias cuando cambian
+            useEffect(() => {
+                localStorage.setItem('cal-theme', JSON.stringify(isDark));
+            }, [isDark]);
+
+            useEffect(() => {
+                localStorage.setItem('cal-crossed', JSON.stringify(crossOutPast));
+            }, [crossOutPast]);
+
             return (
-                <div className="min-h-screen py-10 md:py-20 px-4">
-                    {/* Contenedor principal con fondo blanco y sombra */}
-                    <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-sm overflow-hidden p-6 md:p-16">
-                        <header className="mb-12">
-                            <h1 className="text-6xl md:text-8xl font-black text-center mb-6 tracking-tighter uppercase text-black">
-                                Calendario 2026
-                            </h1>
-
-                            {/* Leyenda */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-6 rounded-2xl border border-gray-100">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-5 h-5 rounded-md ${COLORS.inamovible}`}></div>
-                                    <span className="text-[10px] font-black uppercase leading-none text-gray-600">Feriados<br/>Inamovibles</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-5 h-5 rounded-md ${COLORS.no_laborable}`}></div>
-                                    <span className="text-[10px] font-black uppercase leading-none text-gray-600">Días no<br/>laborables</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-5 h-5 rounded-md ${COLORS.turistico}`}></div>
-                                    <span className="text-[10px] font-black uppercase leading-none text-gray-600">Con fines<br/>turísticos</span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-5 h-5 rounded-md ${COLORS.trasladable}`}></div>
-                                    <span className="text-[10px] font-black uppercase leading-none text-gray-600">Feriados<br/>trasladables</span>
-                                </div>
-                            </div>
-                        </header>
-
-                        {/* Grilla de Meses */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
-                            {MONTHS.map((_, i) => <Month key={i} monthIdx={i} />)}
+                <div className="min-h-screen py-6 md:py-16 px-4">
+                    <div className={`max-w-6xl mx-auto shadow-2xl rounded-sm overflow-hidden transition-colors duration-300 ${isDark ? 'bg-[#1e1e1e] border border-gray-800' : 'bg-white'}`}>
+                        
+                        {/* Panel de Controles */}
+                        <div className={`flex flex-wrap items-center justify-center gap-4 py-4 px-6 border-b ${isDark ? 'border-gray-800 bg-[#161616]' : 'bg-gray-50 border-gray-100'}`}>
+                            <button 
+                                onClick={() => setCrossOutPast(!crossOutPast)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                    crossOutPast 
+                                    ? 'bg-red-600 text-white' 
+                                    : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50')
+                                }`}
+                            >
+                                {crossOutPast ? "✓ DÍAS PASADOS TACHADOS" : "TACHAR DÍAS PASADOS"}
+                            </button>
+                            
+                            <button 
+                                onClick={() => setIsDark(!isDark)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 transition-all ${
+                                    isDark 
+                                    ? 'bg-yellow-500 text-black' 
+                                    : 'bg-black text-white'
+                                }`}
+                            >
+                                {isDark ? "MODO CLARO" : "MODO OSCURO"}
+                            </button>
                         </div>
 
-                        {/* Footer estilo Infobae */}
-                        <footer className="mt-20 border-t border-gray-100 pt-10">
-                            <div className="bg-[#d2a679] text-black font-bold text-center py-2 mb-6 tracking-widest text-[10px] rounded uppercase">
-                                Fuente: Ministerio del Interior
+                        <div className="p-6 md:p-16">
+                            <header className="mb-12">
+                                <h1 className={`text-6xl md:text-8xl font-black text-center mb-6 tracking-tighter uppercase ${isDark ? 'text-white' : 'text-black'}`}>
+                                    Calendario 2026
+                                </h1>
+
+                                {/* Leyenda */}
+                                <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-2xl border ${isDark ? 'bg-[#252525] border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-5 h-5 rounded-md ${COLORS.inamovible}`}></div>
+                                        <span className={`text-[10px] font-black uppercase leading-none ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Feriados<br/>Inamovibles</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-5 h-5 rounded-md ${COLORS.no_laborable}`}></div>
+                                        <span className={`text-[10px] font-black uppercase leading-none ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Días no<br/>laborables</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-5 h-5 rounded-md ${COLORS.turistico}`}></div>
+                                        <span className={`text-[10px] font-black uppercase leading-none ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Con fines<br/>turísticos</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-5 h-5 rounded-md ${COLORS.trasladable}`}></div>
+                                        <span className={`text-[10px] font-black uppercase leading-none ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Feriados<br/>trasladables</span>
+                                    </div>
+                                </div>
+                            </header>
+
+                            {/* Grilla de Meses */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
+                                {MONTHS.map((_, i) => (
+                                    <Month 
+                                        key={i} 
+                                        monthIdx={i} 
+                                        isDark={isDark} 
+                                        crossOutPast={crossOutPast} 
+                                    />
+                                ))}
                             </div>
-                            <div className="flex flex-col items-center">
-                                <div className="bg-black text-white px-5 py-1 text-3xl font-black italic tracking-tighter">infobae</div>
-                                <p className="text-[10px] text-gray-400 mt-6 text-center max-w-md uppercase tracking-wider">
-                                    Diseño replicado basándose en la comunicación oficial de Argentina.
-                                </p>
-                            </div>
-                        </footer>
+
+                            {/* Footer estilo Infobae */}
+                            <footer className={`mt-20 border-t pt-10 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
+                                <div className="bg-[#d2a679] text-black font-bold text-center py-2 mb-6 tracking-widest text-[10px] rounded uppercase">
+                                    Fuente: Ministerio del Interior
+                                </div>
+                                <div className="flex flex-col items-center">
+                                    <div className={`px-5 py-1 text-3xl font-black italic tracking-tighter ${isDark ? 'bg-white text-black' : 'bg-black text-white'}`}>infobae</div>
+                                    <p className="text-[10px] text-gray-400 mt-6 text-center max-w-md uppercase tracking-wider">
+                                        Diseño replicado basándose en la comunicación oficial de Argentina.
+                                    </p>
+                                </div>
+                            </footer>
+                        </div>
                     </div>
                 </div>
             );
