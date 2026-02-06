@@ -31,6 +31,17 @@
             transform: rotate(-45deg);
             pointer-events: none;
         }
+        
+        /* Transición suave para el tooltip */
+        .tooltip-enter {
+            opacity: 0;
+            transform: translate(-50%, -90%) scale(0.95);
+        }
+        .tooltip-active {
+            opacity: 1;
+            transform: translate(-50%, -110%) scale(1);
+            transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+        }
     </style>
 </head>
 <body class="text-gray-900">
@@ -73,7 +84,7 @@
             trasladable: "bg-[#00aeef]"
         };
 
-        const Month = ({ monthIdx, isDark, crossOutPast }) => {
+        const Month = ({ monthIdx, isDark, crossOutPast, onHoverDay }) => {
             const year = 2026;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -90,6 +101,26 @@
                 const hDate = new Date(h.date + 'T00:00:00');
                 return hDate.getMonth() === monthIdx;
             });
+
+            const getTooltipText = (targetDate) => {
+                const diffTime = targetDate.getTime() - today.getTime();
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 0) return null;
+                
+                const weeks = Math.floor(diffDays / 7);
+                const remainingDays = diffDays % 7;
+                
+                let text = "dentro de ";
+                if (weeks > 0) {
+                    text += `${weeks} ${weeks === 1 ? 'semana' : 'semanas'}`;
+                    if (remainingDays > 0) text += ` y ${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                } else {
+                    text += `${remainingDays} ${remainingDays === 1 ? 'día' : 'días'}`;
+                }
+                
+                return text;
+            };
 
             return (
                 <div className="flex flex-col mb-10 px-2">
@@ -109,10 +140,31 @@
                             const isPast = currentDayDate < today;
                             const isToday = currentDayDate.getTime() === today.getTime();
 
+                            const handleMouseEnter = (e) => {
+                                if (holiday && !isPast) {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    onHoverDay({
+                                        show: true,
+                                        content: getTooltipText(currentDayDate),
+                                        x: rect.left + rect.width / 2,
+                                        y: rect.top
+                                    });
+                                }
+                            };
+
+                            const handleMouseLeave = () => {
+                                onHoverDay(prev => ({ ...prev, show: false }));
+                            };
+
                             return (
-                                <div key={day} className={`relative flex items-center justify-center p-1 h-8 w-8 mx-auto ${crossOutPast && isPast ? 'day-crossed opacity-40' : ''}`}>
+                                <div 
+                                    key={day} 
+                                    onMouseEnter={handleMouseEnter}
+                                    onMouseLeave={handleMouseLeave}
+                                    className={`relative flex items-center justify-center p-1 h-8 w-8 mx-auto transition-all cursor-default ${crossOutPast && isPast ? 'day-crossed opacity-40' : ''}`}
+                                >
                                     {holiday && (
-                                        <div className={`absolute inset-0 rounded-full ${COLORS[holiday.type]}`}></div>
+                                        <div className={`absolute inset-0 rounded-full ${COLORS[holiday.type]} ${!isPast ? 'hover:scale-110 transition-transform' : ''}`}></div>
                                     )}
                                     {isToday && !holiday && (
                                         <div className={`absolute inset-0 rounded-full border-2 ${isDark ? 'border-gray-600' : 'border-gray-200'}`}></div>
@@ -137,7 +189,6 @@
         };
 
         const App = () => {
-            // Cargar preferencias de localStorage
             const [isDark, setIsDark] = useState(() => {
                 const saved = localStorage.getItem('cal-theme');
                 return saved ? JSON.parse(saved) : false;
@@ -148,7 +199,8 @@
                 return saved ? JSON.parse(saved) : false;
             });
 
-            // Guardar preferencias cuando cambian
+            const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, content: '' });
+
             useEffect(() => {
                 localStorage.setItem('cal-theme', JSON.stringify(isDark));
             }, [isDark]);
@@ -159,9 +211,21 @@
 
             return (
                 <div className="min-h-screen py-6 md:py-16 px-4">
+                    
+                    {/* Tooltip Personalizado Simple */}
+                    <div 
+                        className={`fixed z-50 px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap text-[10px] font-bold transition-opacity
+                                   ${tooltip.show ? 'tooltip-active' : 'tooltip-enter'}
+                                   ${isDark ? 'bg-gray-800 text-white border border-gray-700' : 'bg-gray-900 text-white'}`}
+                        style={{ left: tooltip.x, top: tooltip.y }}
+                    >
+                        {tooltip.content}
+                        <div className={`absolute left-1/2 -bottom-1 -translate-x-1/2 w-2 h-2 rotate-45 
+                                        ${isDark ? 'bg-gray-800 border-r border-b border-gray-700' : 'bg-gray-900'}`}></div>
+                    </div>
+
                     <div className={`max-w-6xl mx-auto shadow-2xl rounded-sm overflow-hidden transition-colors duration-300 ${isDark ? 'bg-[#1e1e1e] border border-gray-800' : 'bg-white'}`}>
                         
-                        {/* Panel de Controles */}
                         <div className={`flex flex-wrap items-center justify-center gap-4 py-4 px-6 border-b ${isDark ? 'border-gray-800 bg-[#161616]' : 'bg-gray-50 border-gray-100'}`}>
                             <button 
                                 onClick={() => setCrossOutPast(!crossOutPast)}
@@ -192,7 +256,6 @@
                                     Calendario 2026
                                 </h1>
 
-                                {/* Leyenda */}
                                 <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-2xl border ${isDark ? 'bg-[#252525] border-gray-700' : 'bg-gray-50 border-gray-100'}`}>
                                     <div className="flex items-center gap-3">
                                         <div className={`w-5 h-5 rounded-md ${COLORS.inamovible}`}></div>
@@ -213,19 +276,18 @@
                                 </div>
                             </header>
 
-                            {/* Grilla de Meses */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
                                 {MONTHS.map((_, i) => (
                                     <Month 
                                         key={i} 
                                         monthIdx={i} 
                                         isDark={isDark} 
-                                        crossOutPast={crossOutPast} 
+                                        crossOutPast={crossOutPast}
+                                        onHoverDay={setTooltip}
                                     />
                                 ))}
                             </div>
 
-                            {/* Footer estilo Infobae */}
                             <footer className={`mt-20 border-t pt-10 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                 <div className="bg-[#d2a679] text-black font-bold text-center py-2 mb-6 tracking-widest text-[10px] rounded uppercase">
                                     Fuente: Ministerio del Interior
