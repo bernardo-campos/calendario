@@ -48,7 +48,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
         const HOLIDAYS_DATA = [
             { date: '2026-01-01', type: 'inamovible', label: 'Jueves 1: Año Nuevo (feriado inamovible).' },
@@ -83,6 +83,19 @@
             no_laborable: "bg-[#f7941d]",
             turistico: "bg-[#8cc63f]",
             trasladable: "bg-[#00aeef]"
+        };
+
+        const WEEK_DAYS = ["D", "L", "M", "M", "J", "V", "S"];
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const toDateStr = (dateObj) => `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+        const toShortDate = (dateObj) => `${pad(dateObj.getDate())}/${pad(dateObj.getMonth() + 1)}`;
+        const HOLIDAY_SET = new Set(HOLIDAYS_DATA.map(h => h.date));
+
+        const isBusinessDay = (dateObj) => {
+            const day = dateObj.getDay();
+            if (day === 0 || day === 6) return false;
+            return !HOLIDAY_SET.has(toDateStr(dateObj));
         };
 
         const Month = ({ monthIdx, isDark, crossOutPast, onHoverDay, userNotes, onDayClick, lightWeekendText }) => {
@@ -197,6 +210,159 @@
             );
         };
 
+        const WeekView = ({ isDark, crossOutPast, userNotes, onDayClick, lightWeekendText, onHoverDay }) => {
+            const year = 2026;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const weeks = useMemo(() => {
+                const yearStart = new Date(year, 0, 1);
+                const yearEnd = new Date(year, 11, 31);
+
+                const rangeStart = new Date(yearStart);
+                rangeStart.setDate(rangeStart.getDate() - rangeStart.getDay());
+
+                const rangeEnd = new Date(yearEnd);
+                rangeEnd.setDate(rangeEnd.getDate() + (6 - rangeEnd.getDay()));
+
+                const data = [];
+                const cursor = new Date(rangeStart);
+                let weekNumber = 1;
+
+                while (cursor <= rangeEnd) {
+                    const weekStart = new Date(cursor);
+                    const days = Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date(weekStart);
+                        d.setDate(weekStart.getDate() + i);
+                        const dateStr = toDateStr(d);
+                        const holiday = HOLIDAYS_DATA.find(h => h.date === dateStr);
+                        const inYear = d.getFullYear() === year;
+                        const isPast = d < today;
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                        return {
+                            date: d,
+                            dateStr,
+                            dayOfMonth: d.getDate(),
+                            inYear,
+                            holiday,
+                            isWeekend,
+                            isPast,
+                            isBusiness: inYear && isBusinessDay(d)
+                        };
+                    });
+
+                    data.push({
+                        weekNumber,
+                        start: new Date(weekStart),
+                        end: new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6),
+                        days,
+                        businessDays: days.filter(d => d.isBusiness).length,
+                        holidays: days
+                            .filter(d => d.inYear && d.holiday)
+                            .map(d => ({
+                                dateStr: d.dateStr,
+                                label: d.holiday.label
+                            }))
+                    });
+
+                    cursor.setDate(cursor.getDate() + 7);
+                    weekNumber += 1;
+                }
+
+                return data;
+            }, []);
+
+            const buildHolidayTooltip = (weekHolidays) => {
+                return weekHolidays.map(h => `${h.dateStr}: ${h.label}`).join('\n');
+            };
+
+            const handleHolidayInfoMouseEnter = (e, weekHolidays) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                onHoverDay({
+                    show: true,
+                    content: buildHolidayTooltip(weekHolidays),
+                    x: rect.left + rect.width / 2,
+                    y: rect.top
+                });
+            };
+
+            const handleHolidayInfoMouseLeave = () => {
+                onHoverDay(prev => ({ ...prev, show: false }));
+            };
+
+            return (
+                <div className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#232323] border-gray-800' : 'bg-white border-gray-100'}`}>
+                    <div className={`grid grid-cols-[64px_repeat(7,minmax(0,1fr))_90px] gap-2 p-3 border-b ${isDark ? 'border-gray-800 bg-[#1b1b1b]' : 'border-gray-100 bg-gray-50'}`}>
+                        <div className={`text-[10px] font-black uppercase text-center self-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Sem</div>
+                        {WEEK_DAYS.map((d, i) => (
+                            <div key={`head-${i}`} className={`text-[10px] font-black uppercase text-center self-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                                {d}
+                            </div>
+                        ))}
+                        <div className={`text-[10px] font-black uppercase text-center self-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Info</div>
+                    </div>
+
+                    <div className="space-y-2 p-3">
+                        {weeks.map((week) => (
+                            <article key={week.weekNumber} className={`grid grid-cols-[64px_repeat(7,minmax(0,1fr))_90px] gap-2 rounded-xl border px-2 py-1 ${isDark ? 'bg-[#1f1f1f] border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
+                                <div className="flex items-center justify-center">
+                                    <div className={`text-xs font-black px-2 py-1 rounded-lg ${isDark ? 'bg-[#2a2a2a] text-gray-100' : 'bg-white text-gray-700 border border-gray-200'}`}>
+                                        {week.weekNumber}
+                                    </div>
+                                </div>
+
+                                {week.days.map((d, idx) => {
+                                    const hasNotes = userNotes[d.dateStr] && userNotes[d.dateStr].length > 0;
+
+                                    return (
+                                        <button
+                                            key={`${week.weekNumber}-${d.dateStr}`}
+                                            onClick={() => d.inYear && onDayClick(d.dateStr)}
+                                            className={`relative h-12 text-center transition-all ${
+                                                d.inYear
+                                                ? 'cursor-pointer'
+                                                : 'opacity-30 cursor-not-allowed'
+                                            } ${
+                                                crossOutPast && d.isPast ? 'opacity-40' : ''
+                                            }`}
+                                            disabled={!d.inYear}
+                                            title={`${WEEK_DAYS[idx]} ${d.dayOfMonth}/${pad(d.date.getMonth() + 1)}`}
+                                        >
+                                            {d.holiday && d.inYear && (
+                                                <div className={`absolute inset-0 m-auto h-8 w-8 rounded-full ${COLORS[d.holiday.type]}`}></div>
+                                            )}
+                                            <div className={`relative text-sm font-black leading-[48px] ${d.holiday ? 'text-white' : (lightWeekendText && d.isWeekend ? 'text-gray-300' : (isDark ? 'text-gray-200' : 'text-gray-800'))}`}>
+                                                {d.dayOfMonth}
+                                            </div>
+                                            {hasNotes && (
+                                                <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full border border-white"></div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+
+                                <div className="flex items-center justify-center">
+                                    {week.holidays.length > 0 ? (
+                                        <button
+                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold ${isDark ? 'bg-[#2a2a2a] text-gray-100 hover:bg-[#333]' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-100'}`}
+                                            onMouseEnter={(e) => handleHolidayInfoMouseEnter(e, week.holidays)}
+                                            onMouseLeave={handleHolidayInfoMouseLeave}
+                                        >
+                                            {week.holidays.length} fer.
+                                        </button>
+                                    ) : (
+                                        <span className={`text-[10px] font-bold ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                                            -
+                                        </span>
+                                    )}
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
         const App = () => {
             const [isDark, setIsDark] = useState(() => {
                 const saved = localStorage.getItem('cal-theme');
@@ -206,6 +372,11 @@
             const [crossOutPast, setCrossOutPast] = useState(() => {
                 const saved = localStorage.getItem('cal-crossed');
                 return saved ? JSON.parse(saved) : false;
+            });
+
+            const [calendarView, setCalendarView] = useState(() => {
+                const saved = localStorage.getItem('cal-view');
+                return saved || 'monthly';
             });
 
             const [lightWeekendText, setLightWeekendText] = useState(() => {
@@ -229,6 +400,10 @@
             useEffect(() => {
                 localStorage.setItem('cal-crossed', JSON.stringify(crossOutPast));
             }, [crossOutPast]);
+
+            useEffect(() => {
+                localStorage.setItem('cal-view', calendarView);
+            }, [calendarView]);
 
             useEffect(() => {
                 localStorage.setItem('cal-light-weekends', JSON.stringify(lightWeekendText));
@@ -324,6 +499,21 @@
                     <div className={`max-w-6xl mx-auto shadow-2xl rounded-sm overflow-hidden transition-colors duration-300 ${isDark ? 'bg-[#1e1e1e] border border-gray-800' : 'bg-white'}`}>
                         
                         <div className={`flex flex-wrap items-center justify-center gap-4 py-4 px-6 border-b ${isDark ? 'border-gray-800 bg-[#161616]' : 'bg-gray-50 border-gray-100'}`}>
+                            <div className={`inline-flex rounded-full p-1 ${isDark ? 'bg-[#0f0f0f]' : 'bg-white border border-gray-200'}`}>
+                                <button
+                                    onClick={() => setCalendarView('monthly')}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${calendarView === 'monthly' ? (isDark ? 'bg-white text-black' : 'bg-black text-white') : (isDark ? 'text-gray-300' : 'text-gray-600')}`}
+                                >
+                                    VISTA MENSUAL
+                                </button>
+                                <button
+                                    onClick={() => setCalendarView('weekly')}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${calendarView === 'weekly' ? (isDark ? 'bg-white text-black' : 'bg-black text-white') : (isDark ? 'text-gray-300' : 'text-gray-600')}`}
+                                >
+                                    VISTA SEMANAL
+                                </button>
+                            </div>
+
                             <button 
                                 onClick={() => setCrossOutPast(!crossOutPast)}
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
@@ -384,20 +574,31 @@
                                 </div>
                             </header>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
-                                {MONTHS.map((_, i) => (
-                                    <Month 
-                                        key={i} 
-                                        monthIdx={i} 
-                                        isDark={isDark} 
-                                        crossOutPast={crossOutPast}
-                                        onHoverDay={setTooltip}
-                                        userNotes={userNotes}
-                                        onDayClick={setSelectedDate}
-                                        lightWeekendText={lightWeekendText}
-                                    />
-                                ))}
-                            </div>
+                            {calendarView === 'monthly' ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
+                                    {MONTHS.map((_, i) => (
+                                        <Month 
+                                            key={i} 
+                                            monthIdx={i} 
+                                            isDark={isDark} 
+                                            crossOutPast={crossOutPast}
+                                            onHoverDay={setTooltip}
+                                            userNotes={userNotes}
+                                            onDayClick={setSelectedDate}
+                                            lightWeekendText={lightWeekendText}
+                                        />
+                                    ))}
+                                </div>
+                            ) : (
+                                <WeekView
+                                    isDark={isDark}
+                                    crossOutPast={crossOutPast}
+                                    userNotes={userNotes}
+                                    onDayClick={setSelectedDate}
+                                    lightWeekendText={lightWeekendText}
+                                    onHoverDay={setTooltip}
+                                />
+                            )}
 
                             <footer className={`mt-20 border-t pt-10 ${isDark ? 'border-gray-800' : 'border-gray-100'}`}>
                                 <div className="bg-[#d2a679] text-black font-bold text-center py-2 mb-6 tracking-widest text-[10px] rounded uppercase">
