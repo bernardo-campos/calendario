@@ -430,6 +430,19 @@
                 localStorage.setItem('cal-notes', JSON.stringify(userNotes));
             }, [userNotes]);
 
+            useEffect(() => {
+                if (!selectedDate) return;
+
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Escape') {
+                        setSelectedDate(null);
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [selectedDate]);
+
             const addNote = () => {
                 if (!noteInput.trim()) return;
                 const newNotes = { ...userNotes };
@@ -469,8 +482,14 @@
 
                     {/* Modal para Notas */}
                     {selectedDate && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                            <div className={`w-full max-w-md rounded-2xl shadow-2xl p-6 ${isDark ? 'bg-[#1e1e1e] border border-gray-800 text-white' : 'bg-white text-gray-900'}`}>
+                        <div
+                            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setSelectedDate(null)}
+                        >
+                            <div
+                                className={`w-full max-w-md rounded-2xl shadow-2xl p-6 ${isDark ? 'bg-[#1e1e1e] border border-gray-800 text-white' : 'bg-white text-gray-900'}`}
+                                onClick={(e) => e.stopPropagation()}
+                            >
                                 <div className="flex justify-between items-center mb-4">
                                     <h2 className="text-xl font-black tracking-tight">{formatDate(selectedDate)}</h2>
                                     <button onClick={() => setSelectedDate(null)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors">
