@@ -210,7 +210,7 @@
             );
         };
 
-        const WeekView = ({ isDark, crossOutPast, userNotes, onDayClick, lightWeekendText, onHoverDay }) => {
+        const WeekView = ({ isDark, crossOutPast, userNotes, onDayClick, lightWeekendText, onHoverDay, hidePastPeriods }) => {
             const year = 2026;
             const today = new Date();
             today.setHours(0, 0, 0, 0);
@@ -272,6 +272,10 @@
                 return data;
             }, []);
 
+            const visibleWeeks = hidePastPeriods
+                ? weeks.filter(week => week.end >= today)
+                : weeks;
+
             const buildHolidayTooltip = (weekHolidays) => {
                 return weekHolidays.map(h => `${h.dateStr}: ${h.label}`).join('\n');
             };
@@ -303,7 +307,7 @@
                     </div>
 
                     <div className="space-y-2 p-3">
-                        {weeks.map((week) => (
+                        {visibleWeeks.map((week) => (
                             <article key={week.weekNumber} className={`grid grid-cols-[64px_repeat(7,minmax(0,1fr))_90px] gap-2 rounded-xl border px-2 py-1 ${isDark ? 'bg-[#1f1f1f] border-gray-800' : 'bg-gray-50 border-gray-100'}`}>
                                 <div className="flex items-center justify-center">
                                     <div className={`text-xs font-black px-2 py-1 rounded-lg ${isDark ? 'bg-[#2a2a2a] text-gray-100' : 'bg-white text-gray-700 border border-gray-200'}`}>
@@ -384,6 +388,11 @@
                 return saved ? JSON.parse(saved) : false;
             });
 
+            const [hidePastPeriods, setHidePastPeriods] = useState(() => {
+                const saved = localStorage.getItem('cal-hide-past-periods');
+                return saved ? JSON.parse(saved) : false;
+            });
+
             const [userNotes, setUserNotes] = useState(() => {
                 const saved = localStorage.getItem('cal-notes');
                 return saved ? JSON.parse(saved) : {};
@@ -408,6 +417,10 @@
             useEffect(() => {
                 localStorage.setItem('cal-light-weekends', JSON.stringify(lightWeekendText));
             }, [lightWeekendText]);
+
+            useEffect(() => {
+                localStorage.setItem('cal-hide-past-periods', JSON.stringify(hidePastPeriods));
+            }, [hidePastPeriods]);
 
             useEffect(() => {
                 localStorage.setItem('cal-notes', JSON.stringify(userNotes));
@@ -546,6 +559,19 @@
                             >
                                 {lightWeekendText ? "✓ FINDES EN GRIS CLARO" : "SÁBADOS Y DOMINGOS EN GRIS"}
                             </button>
+
+                            <button 
+                                onClick={() => setHidePastPeriods(!hidePastPeriods)}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                                    hidePastPeriods 
+                                    ? 'bg-emerald-600 text-white' 
+                                    : (isDark ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50')
+                                }`}
+                            >
+                                {calendarView === 'weekly'
+                                    ? (hidePastPeriods ? "✓ SEMANAS PASADAS OCULTAS" : "OCULTAR SEMANAS PASADAS")
+                                    : (hidePastPeriods ? "✓ MESES PASADOS OCULTOS" : "OCULTAR MESES PASADOS")}
+                            </button>
                         </div>
 
                         <div className="p-6 md:p-16">
@@ -576,18 +602,26 @@
 
                             {calendarView === 'monthly' ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-8 gap-y-4">
-                                    {MONTHS.map((_, i) => (
-                                        <Month 
-                                            key={i} 
-                                            monthIdx={i} 
-                                            isDark={isDark} 
-                                            crossOutPast={crossOutPast}
-                                            onHoverDay={setTooltip}
-                                            userNotes={userNotes}
-                                            onDayClick={setSelectedDate}
-                                            lightWeekendText={lightWeekendText}
-                                        />
-                                    ))}
+                                    {MONTHS.map((_, i) => {
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const endOfMonth = new Date(2026, i + 1, 0);
+                                        endOfMonth.setHours(0, 0, 0, 0);
+                                        if (hidePastPeriods && endOfMonth < today) return null;
+
+                                        return (
+                                            <Month 
+                                                key={i} 
+                                                monthIdx={i} 
+                                                isDark={isDark} 
+                                                crossOutPast={crossOutPast}
+                                                onHoverDay={setTooltip}
+                                                userNotes={userNotes}
+                                                onDayClick={setSelectedDate}
+                                                lightWeekendText={lightWeekendText}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <WeekView
@@ -597,6 +631,7 @@
                                     onDayClick={setSelectedDate}
                                     lightWeekendText={lightWeekendText}
                                     onHoverDay={setTooltip}
+                                    hidePastPeriods={hidePastPeriods}
                                 />
                             )}
 
