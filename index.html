@@ -327,7 +327,7 @@
                                                 ? 'cursor-pointer'
                                                 : 'opacity-30 cursor-not-allowed'
                                             } ${
-                                                crossOutPast && d.isPast ? 'opacity-40' : ''
+                                                crossOutPast && d.isPast ? 'day-crossed opacity-40' : ''
                                             }`}
                                             disabled={!d.inYear}
                                             title={`${WEEK_DAYS[idx]} ${d.dayOfMonth}/${pad(d.date.getMonth() + 1)}`}
